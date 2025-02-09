@@ -7,7 +7,7 @@
 {% block scripts %}
 <script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.noStyle.js"></script>
 <script>
-// Define column definitions based on expected CSV columns.
+// Define column definitions based on the expected CSV columns.
 let dbColumnDefs = [
   { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
   { headerName: "Status", field: "Status - Container", filter: true },
@@ -21,10 +21,13 @@ let dbColumnDefs = [
   { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
 ];
 
-// Initialize AG Grid for the database.
 let databaseGridOptions = {
   columnDefs: dbColumnDefs,
-  rowData: {{ data|tojson }}
+  rowData: {{ data|tojson }},
+  onGridReady: function(params) {
+    databaseGridOptions.api = params.api;
+    databaseGridOptions.columnApi = params.columnApi;
+  }
 };
 
 document.addEventListener('DOMContentLoaded', function () {

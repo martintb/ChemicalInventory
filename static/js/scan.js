@@ -8,10 +8,16 @@ let gridOptions = {
     { headerName: "Location", field: "location" },
     { headerName: "Category", field: "category" }
   ],
-  rowData: []
+  rowData: [],
+  // NOTE: Store grid API on grid ready.
+  onGridReady: function(params) {
+    gridOptions.api = params.api;
+    gridOptions.columnApi = params.columnApi;
+    fetchScannedData();
+  }
 };
 
-// Configure AG Grid for the inventory data from the reference database.
+// Configure AG Grid for the inventory data (for reference rows found in the database).
 let inventoryGridOptions = {
   columnDefs: [
     { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
@@ -25,19 +31,23 @@ let inventoryGridOptions = {
     { headerName: "NFPA 704 Health Hazard", field: "NFPA 704 Health Hazard - Product", filter: true },
     { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
   ],
-  rowData: []
+  rowData: [],
+  onGridReady: function(params) {
+    inventoryGridOptions.api = params.api;
+    inventoryGridOptions.columnApi = params.columnApi;
+  }
 };
 
 document.addEventListener('DOMContentLoaded', function () {
   // Initialize scanned data grid.
   let gridDiv = document.querySelector('#scan-table');
   new agGrid.Grid(gridDiv, gridOptions);
-  fetchScannedData();
 
   // Initialize inventory data grid.
   let inventoryGridDiv = document.querySelector('#inventory-table');
   new agGrid.Grid(inventoryGridDiv, inventoryGridOptions);
 
+  // Listen for Return/Enter key on the barcode input field.
   let barcodeInput = document.getElementById('barcode_input');
   barcodeInput.addEventListener('keydown', function (event) {
     if (event.key === "Enter" || event.keyCode === 13) {
@@ -79,10 +89,10 @@ function processScan(barcode) {
       : "Scanned: " + data.barcode + " (" + data.category + ")";
     fetchScannedData();
 
-    // If the response includes inventory data, update the inventory grid.
+    // Update the inventory grid if inventory data is returned.
     if (data.inventory_data && data.inventory_data.length > 0) {
       data.inventory_data.forEach(function(newRow) {
-        // Check if this barcode already exists in the inventory grid.
+        // Check if this barcode is already in the inventory grid.
         let exists = inventoryGridOptions.rowData.some(function(row) {
           return row["Barcode ID - Container"] == newRow["Barcode ID - Container"];
         });
@@ -90,7 +100,9 @@ function processScan(barcode) {
           inventoryGridOptions.rowData.push(newRow);
         }
       });
-      inventoryGridOptions.api.setRowData(inventoryGridOptions.rowData);
+      if (inventoryGridOptions.api) {
+        inventoryGridOptions.api.setRowData(inventoryGridOptions.rowData);
+      }
     }
   })
   .catch(error => console.error("Error processing scan:", error));
@@ -99,7 +111,11 @@ function processScan(barcode) {
 function fetchScannedData() {
   fetch("/api/scanned_data")
     .then(response => response.json())
-    .then(data => gridOptions.api.setRowData(data))
+    .then(data => {
+      if (gridOptions.api) {
+        gridOptions.api.setRowData(data);
+      }
+    })
     .catch(error => console.error("Error fetching scanned data:", error));
 }
 
