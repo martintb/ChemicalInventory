@@ -4,10 +4,7 @@ import logging
 import json
 import re
 import pandas as pd
-from flask import (
-    Flask, render_template, request, jsonify,
-    send_file, session, redirect, url_for, flash
-)
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, flash
 
 # --- Application and Logging Configuration ---
 app = Flask(__name__)
@@ -108,6 +105,21 @@ def archive_campaign():
     """Archive (save) the current campaign."""
     save_scanned_data()
 
+def update_campaign_stats():
+    """Update campaign statistics in the session."""
+    global scanned_df
+    session['total_scanned'] = len(scanned_df)
+    session['not_found'] = len(scanned_df[scanned_df['category'] == 'not_found'])
+    session['found'] = len(scanned_df[scanned_df['category'] == 'found'])
+
+def get_campaign_stats():
+    """Get current campaign statistics."""
+    return {
+        'total_scanned': session.get('total_scanned', 0),
+        'not_found': session.get('not_found', 0),
+        'found': session.get('found', 0)
+    }
+
 # --- Global Error Handler ---
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -176,23 +188,30 @@ def index():
         return render_template("index.html", unique_count=unique_count)
 
 @app.route('/campaign')
-def campaign():
-    """Active campaign scanning page."""
-    try:
-        campaign_info = {
-            "building": session.get('building'),
-            "room": session.get('room'),
-            "location": session.get('location', ''),
-            "campaign_id": session.get('campaign_id')
-        }
-        if not campaign_info.get("campaign_id"):
-            flash("No active campaign. Please start a new campaign.", "warning")
+@app.route('/campaign/<campaign_id>')
+def campaign(campaign_id=None):
+    if campaign_id:
+        # If a campaign_id is provided in the URL, load that campaign.
+        session['campaign_id'] = campaign_id
+        global scanned_df
+        file_path = os.path.join(CAMPAIGNS_DIR, f"{campaign_id}.csv")
+        if os.path.exists(file_path):
+            scanned_df = pd.read_csv(file_path)
+        else:
+            flash("Campaign file not found.", "danger")
             return redirect(url_for('index'))
-        return render_template("campaign.html", campaign=campaign_info)
-    except Exception as e:
-        logging.exception("Error in campaign route.")
-        flash("An error occurred loading the campaign page.", "danger")
-        return redirect(url_for('index'))
+    else:
+        campaign_id = session.get('campaign_id')
+        if not campaign_id:
+            flash("No active campaign. Please start a campaign.", "warning")
+            return redirect(url_for('index'))
+    campaign_info = {
+         "building": session.get('building', ''),
+         "room": session.get('room', ''),
+         "location": session.get('location', ''),
+         "campaign_id": campaign_id
+    }
+    return render_template("campaign.html", campaign=campaign_info)
 
 @app.route('/scan', methods=['POST'])
 def scan():
@@ -201,7 +220,7 @@ def scan():
       - Validate the barcode using the configured regular expression.
       - Reject duplicate scans.
       - Look up the barcode in the reference inventory.
-      - Classify the scan as “found”, “archived”, or “not_found.”
+      - Classify the scan as "found", "archived", or "not_found."
       - Append the scan to the campaign and archive it.
       - If found in the inventory, return the matching row(s) as inventory_data.
     """
@@ -220,13 +239,14 @@ def scan():
 
         # Check for duplicate in the active campaign.
         if barcode in scanned_df['barcode'].values:
-            response = {
+            return jsonify({
                 "success": True,
-                "duplicate": True,
+                "barcode": barcode,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "category": "duplicate",
-                "message": "Barcode already scanned."
-            }
-            return jsonify(response)
+                "inventory_data": [],
+                "campaign_stats": get_campaign_stats()
+            })
 
         building = session.get('building')
         room = session.get('room')
@@ -234,52 +254,35 @@ def scan():
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Look up the barcode in the reference inventory.
-        try:
-            matched = inventory_df[inventory_df["Barcode ID - Container"].astype(str) == barcode]
-        except Exception as e:
-            logging.exception("Error during barcode lookup.")
-            matched = pd.DataFrame()
+        matched = inventory_df[inventory_df["Barcode ID - Container"].astype(str) == barcode]
 
         if not matched.empty:
-            statuses = matched["Status - Container"].astype(str).str.lower()
-            if any(statuses == "archived"):
-                category = "archived"
-            else:
-                category = "found"
+            category = "found"
         else:
             category = "not_found"
 
-        new_entry = {
-            "barcode": barcode,
-            "timestamp": timestamp,
-            "building": building,
-            "room": room,
-            "location": location,
-            "category": category
-        }
-        # Use pd.concat instead of .append (for pandas 2.0 compatibility).
-        scanned_df = pd.concat([scanned_df, pd.DataFrame([new_entry])], ignore_index=True)
+        new_row = pd.DataFrame({
+            "barcode": [barcode],
+            "timestamp": [timestamp],
+            "building": [building],
+            "room": [room],
+            "location": [location],
+            "category": [category]
+        })
+        scanned_df = pd.concat([scanned_df, new_row], ignore_index=True)
         archive_campaign()  # Archive campaign after each scan.
+        update_campaign_stats()  # Update campaign statistics
 
-        stats = {
-            "total": len(scanned_df),
-            "found": len(scanned_df[scanned_df['category'] == 'found']),
-            "not_found": len(scanned_df[scanned_df['category'] == 'not_found']),
-            "archived": len(scanned_df[scanned_df['category'] == 'archived'])
-        }
         # If the barcode was found, include the matching inventory row(s) in the response.
-        inventory_data = []
-        if not matched.empty:
-            inventory_data = matched.to_dict(orient='records')
+        inventory_data = matched.to_dict(orient='records') if not matched.empty else []
 
         response = {
             "success": True,
             "barcode": barcode,
             "timestamp": timestamp,
             "category": category,
-            "stats": stats,
-            "duplicate": False,
-            "inventory_data": inventory_data
+            "inventory_data": inventory_data,
+            "campaign_stats": get_campaign_stats()  # Include updated stats in the response
         }
         return jsonify(response)
     except Exception as e:
@@ -288,10 +291,13 @@ def scan():
 
 @app.route('/api/scanned_data')
 def api_scanned_data():
-    """Return the current campaign’s scanned data as JSON (for AG Grid)."""
+    """Return the current campaign's scanned data as JSON (for AG Grid)."""
     try:
         data = scanned_df.to_dict(orient='records')
-        return jsonify(data)
+        return jsonify({
+            'data': data,
+            'campaign_stats': get_campaign_stats()
+        })
     except Exception as e:
         logging.exception("Error fetching scanned data.")
         return jsonify([])
@@ -351,7 +357,9 @@ def view_campaign(campaign_id):
         if os.path.exists(file_path):
             campaign_data = pd.read_csv(file_path)
             data = campaign_data.to_dict(orient='records')
-            return render_template("view_campaign.html", campaign_id=campaign_id, data=data)
+            stats = {'total_scanned': len(data), 'not_found': sum(1 for item in data if item['category'] == 'not_found'),
+                     'found': sum(1 for item in data if item['category'] == 'found')}
+            return render_template("view_campaign.html", campaign_id=campaign_id, data=data, stats=stats)
         else:
             flash("Campaign file not found.", "danger")
             return redirect(url_for('campaign_history'))

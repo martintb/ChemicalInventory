@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="CodebuddyPersistentProjectState">
-    <option name="selectedModel" value="codebuddy:CLAUDE_3.5_SONNET_V7" />
+    <option name="autoFileSelection" value="true" />
+    <option name="promptHistory">
+      <list>
+        <option value="Okay, something is wrong with the campaign page. When I enter a barcode, the page only updates if the barcode is 'not_found'. Also, only the &quot;Scanned Items&quot; table updates, the &quot;Scanned Inventory&quot; table never updates. " />
+        <option value="Still not working. Could we simplify the page to only have one table? Please show all entered Barcode IDs and, if they're found, show the data from the database. The not_found case should just have blank entries for the information from the database. Please make sure the table updates with each scan or keyboard based entry. This is essential for its usefullness. " />
+        <option value="We're using pandas 2.0. You can't use .append anymore. You must use pd.concat. Please fix.&#10;&#10;Also, please add back in the live running total values on the top of the campaign page for the number of scanned, not_found, and found but archived chemicals. These should update every time a barcode is scanned or added." />
+        <option value="Okay I'm getting the following js errors now:&#10;&#10;Uncaught (in promise) ReferenceError: updateCampaignStats is not defined&#10;    at scan.js:111:65&#10;&#10;Error processing scan: SyntaxError: Unexpected token 'N', ...&quot; Product&quot;:NaN,&quot;NFPA &quot;... is not valid JSON at scan.js 83&#10;&#10;The first error is on page load for campaign.html, the second when I try to submit a barcode. &#10;&#10;&#10;" />
+      </list>
+    </option>
+    <option name="selectedModel" value="codebuddy:OPENAI_O3_MINI" />
+    <option name="ttsEnabled" value="false" />
   </component>
 </project>

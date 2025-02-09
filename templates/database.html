@@ -1,38 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Reference Inventory Database{% endblock %}
+{% block head %}
+  <!-- Include Tabulator CSS -->
+  <link href="https://unpkg.com/tabulator-tables@5.4.4/dist/css/tabulator.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <h1>Reference Inventory Database</h1>
-<div id="database-table" class="ag-theme-alpine" style="height: 500px; width:100%;"></div>
+<div id="database-table"></div>
 {% endblock %}
 {% block scripts %}
-<script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.noStyle.js"></script>
-<script>
-// Define column definitions based on the expected CSV columns.
-let dbColumnDefs = [
-  { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
-  { headerName: "Status", field: "Status - Container", filter: true },
-  { headerName: "Time Sensitive", field: "Time Sensitive - Container", filter: true },
-  { headerName: "Location", field: "Location - Container", filter: true },
-  { headerName: "Owner Name", field: "Owner Name - Container", filter: true },
-  { headerName: "Product Identifier", field: "Product Identifier - Product", filter: true },
-  { headerName: "Current Quantity", field: "Current Quantity - Container", filter: true },
-  { headerName: "Unit", field: "Unit - Container", filter: true },
-  { headerName: "NFPA 704 Health Hazard", field: "NFPA 704 Health Hazard - Product", filter: true },
-  { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
-];
+  <!-- Include Tabulator JS -->
+  <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+       // Define column definitions based on your reference CSV columns.
+       var columnDefs = [
+         {title:"Barcode", field:"Barcode ID - Container", headerFilter:"input"},
+         {title:"Status", field:"Status - Container", headerFilter:"input"},
+         {title:"Time Sensitive", field:"Time Sensitive - Container", headerFilter:"input"},
+         {title:"Location", field:"Location - Container", headerFilter:"input"},
+         {title:"Owner Name", field:"Owner Name - Container", headerFilter:"input"},
+         {title:"Product Identifier", field:"Product Identifier - Product", headerFilter:"input"},
+         {title:"Current Quantity", field:"Current Quantity - Container", headerFilter:"input"},
+         {title:"Unit", field:"Unit - Container", headerFilter:"input"},
+         {title:"NFPA 704 Health Hazard", field:"NFPA 704 Health Hazard - Product", headerFilter:"input"},
+         {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product", headerFilter:"input"}
+       ];
 
-let databaseGridOptions = {
-  columnDefs: dbColumnDefs,
-  rowData: {{ data|tojson }},
-  onGridReady: function(params) {
-    databaseGridOptions.api = params.api;
-    databaseGridOptions.columnApi = params.columnApi;
-  }
-};
-
-document.addEventListener('DOMContentLoaded', function () {
-  let dbGridDiv = document.querySelector('#database-table');
-  new agGrid.Grid(dbGridDiv, databaseGridOptions);
-});
-</script>
+       var table = new Tabulator("#database-table", {
+          layout:"fitColumns",
+          pagination:"local",
+          paginationSize:25,
+          columns: columnDefs,
+          data: {{ data|tojson }}
+       });
+    });
+  </script>
 {% endblock %}

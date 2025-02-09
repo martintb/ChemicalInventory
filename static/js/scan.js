@@ -1,137 +1,184 @@
-// Configure AG Grid for the scanned data.
-let gridOptions = {
-  columnDefs: [
-    { headerName: "Barcode", field: "barcode" },
-    { headerName: "Timestamp", field: "timestamp" },
-    { headerName: "Building", field: "building" },
-    { headerName: "Room", field: "room" },
-    { headerName: "Location", field: "location" },
-    { headerName: "Category", field: "category" }
-  ],
-  rowData: [],
-  // NOTE: Store grid API on grid ready.
-  onGridReady: function(params) {
-    gridOptions.api = params.api;
-    gridOptions.columnApi = params.columnApi;
-    fetchScannedData();
-  }
-};
+document.addEventListener("DOMContentLoaded", function(){
+    // Initialize campaign stats
+    var campaignStats = {total_scanned: 0, not_found: 0, found: 0};
+    updateCampaignStats(campaignStats);
 
-// Configure AG Grid for the inventory data (for reference rows found in the database).
-let inventoryGridOptions = {
-  columnDefs: [
-    { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
-    { headerName: "Status", field: "Status - Container", filter: true },
-    { headerName: "Time Sensitive", field: "Time Sensitive - Container", filter: true },
-    { headerName: "Location", field: "Location - Container", filter: true },
-    { headerName: "Owner Name", field: "Owner Name - Container", filter: true },
-    { headerName: "Product Identifier", field: "Product Identifier - Product", filter: true },
-    { headerName: "Current Quantity", field: "Current Quantity - Container", filter: true },
-    { headerName: "Unit", field: "Unit - Container", filter: true },
-    { headerName: "NFPA 704 Health Hazard", field: "NFPA 704 Health Hazard - Product", filter: true },
-    { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
-  ],
-  rowData: [],
-  onGridReady: function(params) {
-    inventoryGridOptions.api = params.api;
-    inventoryGridOptions.columnApi = params.columnApi;
-  }
-};
+    // Initialize the combined table using Tabulator.
+    var combinedTable = new Tabulator("#combined-table", {
+        layout:"fitColumns",
+        placeholder:"No scanned items yet",
+        // Use a custom ajaxRequestFunc so we can fix any NaN values.
+        ajaxURL:"/api/scanned_data",
+        ajaxRequestFunc: function(url, config, params) {
+            return fetch(url, config)
+                .then(response => response.text())
+                .then(text => {
+                    // Replace bare NaN tokens with null so JSON parses.
+                    let fixedText = text.replace(/\bNaN\b/g, "null");
+                    return JSON.parse(fixedText);
+                });
+        },
+        // Use ajaxResponse to extract campaign stats and return only the data array.
+        ajaxResponse: function(url, params, response) {
+            updateCampaignStats(response.campaign_stats);
+            return response.data;
+        },
+        pagination:"local",
+        paginationSize:10,
+        columns:[
+            {title:"Barcode", field:"barcode"},
+            {title:"Timestamp", field:"timestamp", sorter:"datetime"},
+            {title:"Status", field:"Status - Container"},
+            {title:"Time Sensitive", field:"Time Sensitive - Container"},
+            {title:"Location", field:"Location - Container"},
+            {title:"Owner Name", field:"Owner Name - Container"},
+            {title:"Product Identifier", field:"Product Identifier - Product"},
+            {title:"Current Quantity", field:"Current Quantity - Container"},
+            {title:"Unit", field:"Unit - Container"},
+            {title:"NFPA 704 Health Hazard", field:"NFPA 704 Health Hazard - Product"},
+            {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product"}
+        ],
+        initialSort:[{column:"timestamp", dir:"desc"}]
+    });
 
-document.addEventListener('DOMContentLoaded', function () {
-  // Initialize scanned data grid.
-  let gridDiv = document.querySelector('#scan-table');
-  new agGrid.Grid(gridDiv, gridOptions);
-
-  // Initialize inventory data grid.
-  let inventoryGridDiv = document.querySelector('#inventory-table');
-  new agGrid.Grid(inventoryGridDiv, inventoryGridOptions);
-
-  // Listen for Return/Enter key on the barcode input field.
-  let barcodeInput = document.getElementById('barcode_input');
-  barcodeInput.addEventListener('keydown', function (event) {
-    if (event.key === "Enter" || event.keyCode === 13) {
-      event.preventDefault();
-      processBarcode();
-    }
-  });
-
-  function processBarcode() {
-    let barcode = barcodeInput.value.trim();
-    if (barcode !== "") {
-      processScan(barcode);
-      barcodeInput.value = "";
-    }
-  }
-});
-
-function processScan(barcode) {
-  fetch("/scan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ barcode: barcode })
-  })
-  .then(response => response.json())
-  .then(data => {
-    let msgElem = document.getElementById("scan-message");
-    if (!data.success) {
-      msgElem.innerText = data.message;
-      return;
-    }
-    // Update dashboard counts.
-    document.getElementById("total").innerText = data.stats.total;
-    document.getElementById("found").innerText = data.stats.found;
-    document.getElementById("not_found").innerText = data.stats.not_found;
-    document.getElementById("archived").innerText = data.stats.archived;
-    playSound(data.category);
-    msgElem.innerText = data.duplicate
-      ? "Duplicate scan: " + data.barcode
-      : "Scanned: " + data.barcode + " (" + data.category + ")";
-    fetchScannedData();
-
-    // Update the inventory grid if inventory data is returned.
-    if (data.inventory_data && data.inventory_data.length > 0) {
-      data.inventory_data.forEach(function(newRow) {
-        // Check if this barcode is already in the inventory grid.
-        let exists = inventoryGridOptions.rowData.some(function(row) {
-          return row["Barcode ID - Container"] == newRow["Barcode ID - Container"];
-        });
-        if (!exists) {
-          inventoryGridOptions.rowData.push(newRow);
+    // Listen for the Return/Enter key on the barcode input.
+    document.getElementById("barcode_input").addEventListener("keydown", function(e){
+        if(e.key === "Enter" || e.keyCode === 13){
+            e.preventDefault();
+            processBarcode();
         }
-      });
-      if (inventoryGridOptions.api) {
-        inventoryGridOptions.api.setRowData(inventoryGridOptions.rowData);
-      }
+    });
+
+    function processBarcode(){
+         var barcodeInput = document.getElementById("barcode_input");
+         var barcode = barcodeInput.value.trim();
+         if(barcode !== ""){
+             // Check if this barcode already exists in the table.
+             var existingRows = combinedTable.getData().filter(function(row){
+                 return row.barcode === barcode;
+             });
+             if(existingRows.length > 0){
+                 showAlert("Barcode already scanned.");
+                 // Clear and re‑focus the input.
+                 barcodeInput.value = "";
+                 barcodeInput.focus();
+                 barcodeInput.select();
+                 return;
+             }
+             // Otherwise, process the scan.
+             processScan(barcode);
+             // Clear and refocus the input.
+             barcodeInput.value = "";
+             barcodeInput.focus();
+             barcodeInput.select();
+         }
     }
-  })
-  .catch(error => console.error("Error processing scan:", error));
-}
 
-function fetchScannedData() {
-  fetch("/api/scanned_data")
-    .then(response => response.json())
-    .then(data => {
-      if (gridOptions.api) {
-        gridOptions.api.setRowData(data);
-      }
-    })
-    .catch(error => console.error("Error fetching scanned data:", error));
-}
+    function processScan(barcode){
+         fetch("/scan", {
+             method:"POST",
+             headers:{"Content-Type": "application/json"},
+             body: JSON.stringify({barcode: barcode})
+         })
+         .then(res => res.text())
+         .then(text => {
+             // Replace any bare NaN tokens with null.
+             let fixedText = text.replace(/\bNaN\b/g, "null");
+             return JSON.parse(fixedText);
+         })
+         .then(data => {
+              if(!data.success){
+                  // Show an alert if the barcode is invalid (e.g. regex failure).
+                  showAlert(data.message || "Invalid barcode.");
+                  return;
+              }
+              // (Server-side duplicate checking could occur here too,
+              // but our client-side check should catch duplicates.)
+              if(data.duplicate){
+                  showAlert(data.message || "Barcode already scanned.");
+                  return;
+              }
 
-function playSound(category) {
-  let soundId = "";
-  if (category === "found") {
-    soundId = "sound_found";
-  } else if (category === "not_found") {
-    soundId = "sound_not_found";
-  } else if (category === "archived") {
-    soundId = "sound_archived";
-  } else if (category === "duplicate") {
-    soundId = "sound_duplicate";
-  }
-  if (soundId) {
-    let sound = document.getElementById(soundId);
-    if (sound) sound.play();
-  }
-}
+              // Prepare the new row data.
+              let newRow = {
+                  barcode: data.barcode,
+                  timestamp: data.timestamp,
+                  "Status - Container": "",
+                  "Time Sensitive - Container": "",
+                  "Location - Container": "",
+                  "Owner Name - Container": "",
+                  "Product Identifier - Product": "",
+                  "Current Quantity - Container": "",
+                  "Unit - Container": "",
+                  "NFPA 704 Health Hazard - Product": "",
+                  "NFPA 704 Flammability Hazard - Product": ""
+              };
+
+              // If inventory data is returned, update the row with that data.
+              if (data.inventory_data && Array.isArray(data.inventory_data) && data.inventory_data.length > 0) {
+                  for (let key in data.inventory_data[0]) {
+                      // If the value is "NaN" (as string), set it to empty.
+                      if (String(data.inventory_data[0][key]).toLowerCase() === "nan") {
+                          data.inventory_data[0][key] = '';
+                      }
+                  }
+                  Object.assign(newRow, data.inventory_data[0]);
+              }
+
+              // Add the new row to the table.
+              combinedTable.addRow(newRow, true);
+
+              // Update campaign statistics.
+              updateCampaignStats(data.campaign_stats);
+
+              // Play a sound based on the scan result.
+              playSound(data.category);
+         })
+         .catch(err => console.error("Error processing scan:", err));
+    }
+
+    function playSound(category){
+         var soundId = "";
+         if(category === "found"){
+             soundId = "sound_found";
+         } else if(category === "not_found"){
+             soundId = "sound_not_found";
+         } else if(category === "archived"){
+             soundId = "sound_archived";
+         } else if(category === "duplicate"){
+             soundId = "sound_duplicate";
+         }
+         if(soundId){
+             var sound = document.getElementById(soundId);
+             if(sound) sound.play();
+         }
+    }
+
+    function updateCampaignStats(stats) {
+        document.getElementById('total-scanned').textContent = stats.total_scanned;
+        document.getElementById('not-found').textContent = stats.not_found;
+        document.getElementById('found').textContent = stats.found;
+    }
+
+    function showAlert(message) {
+         var alertElem = document.getElementById("scan-alert");
+         if(alertElem) {
+             alertElem.textContent = message;
+             alertElem.style.display = "block";
+             // Hide the alert after 3 seconds.
+             setTimeout(function(){
+                  alertElem.style.display = "none";
+             }, 3000);
+         }
+    }
+
+    // Initial fetch of campaign stats.
+    fetch('/api/scanned_data')
+      .then(res => res.text())
+      .then(text => {
+          let fixedText = text.replace(/\bNaN\b/g, "null");
+          return JSON.parse(fixedText);
+      })
+      .then(data => updateCampaignStats(data.campaign_stats))
+      .catch(err => console.error("Error fetching initial campaign stats:", err));
+});

@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Active Campaign{% endblock %}
+{% block head %}
+  <!-- Include Tabulator CSS -->
+  <link href="https://unpkg.com/tabulator-tables@5.4.4/dist/css/tabulator.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <h1>Active Scan Campaign</h1>
 <div class="mb-3">
@@ -11,31 +15,30 @@
   <p><strong>Campaign ID:</strong> {{ campaign.campaign_id }}</p>
 </div>
 
-<div id="dashboard" class="mb-3">
-  <h2>Dashboard</h2>
-  <p>Total Scanned: <span id="total">0</span></p>
-  <p>Found: <span id="found">0</span></p>
-  <p>Not Found: <span id="not_found">0</span></p>
-  <p>Archived: <span id="archived">0</span></p>
+<div id="campaign-stats" class="mb-3">
+  <h3>Campaign Statistics</h3>
+  <p>
+    <strong>Total Scanned:</strong> <span id="total-scanned">0</span> |
+    <strong>Not Found:</strong> <span id="not-found">0</span> |
+    <strong>Found:</strong> <span id="found">0</span>
+  </p>
 </div>
 
 <div id="scan-section" class="mb-3">
   <h2>Scan Chemical</h2>
   <input type="text" id="barcode_input" class="form-control" placeholder="Scan or type barcode here" autofocus>
   <small class="form-text text-muted">You may scan or type the barcode using your keyboard.</small>
-  <p id="scan-message" class="mt-2"></p>
+  <!-- Alert banner for duplicate or invalid barcodes -->
+  <div id="scan-alert" style="display:none;" class="alert alert-warning mt-2" role="alert"></div>
 </div>
 
-<h2>Scanned Items</h2>
-<div id="scan-table" class="ag-theme-alpine" style="height: 300px; width:100%;"></div>
-
-<h2>Scanned Inventory Data</h2>
-<div id="inventory-table" class="ag-theme-alpine" style="height: 300px; width:100%;"></div>
+<h2>Scanned Items and Inventory Data</h2>
+<div id="combined-table" style="margin-bottom:20px;"></div>
 
 <a href="{{ url_for('download') }}" class="btn btn-success mt-3">Download Campaign CSV</a>
 {% endblock %}
 {% block scripts %}
-<!-- AG Grid -->
-<script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.noStyle.js"></script>
-<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+  <!-- Include Tabulator JS -->
+  <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+  <script src="{{ url_for('static', filename='js/scan.js') }}"></script>
 {% endblock %}
