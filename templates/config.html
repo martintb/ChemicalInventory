@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Barcode Validation Settings</h1>
+<form method="POST">
+  <div class="mb-3">
+    <label for="barcode_regex" class="form-label">Barcode Regular Expression</label>
+    <input type="text" class="form-control" id="barcode_regex" name="barcode_regex" value="{{ barcode_regex }}" required>
+    <div class="form-text">
+      Default: ^[A-Za-z]?\\d{4,6}$ <br>
+      This regex checks for an optional letter followed by 4-6 digits.
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Update Settings</button>
+</form>
+{% endblock %}

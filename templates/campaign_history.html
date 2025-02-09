@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Campaign History{% endblock %}
+{% block content %}
+<h1>Campaign History</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Campaign ID</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for campaign in campaigns %}
+    <tr>
+      <!-- Remove the .csv extension when displaying the campaign id -->
+      <td>{{ campaign[:-4] }}</td>
+      <td>
+        <a href="{{ url_for('view_campaign', campaign_id=campaign[:-4]) }}" class="btn btn-primary btn-sm">View</a>
+        <a href="{{ url_for('download_campaign', campaign_id=campaign[:-4]) }}" class="btn btn-success btn-sm">Download</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

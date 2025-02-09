@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Home - Chemical Inventory{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-md-6">
+    <h1>Start New Scan Campaign</h1>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label for="building" class="form-label">Building Number</label>
+        <input type="text" class="form-control" id="building" name="building" required>
+      </div>
+      <div class="mb-3">
+        <label for="room" class="form-label">Room (Wing & Number, e.g., A330)</label>
+        <input type="text" class="form-control" id="room" name="room" required>
+      </div>
+      <div class="mb-3">
+        <label for="location" class="form-label">In-Room Location (optional)</label>
+        <input type="text" class="form-control" id="location" name="location">
+      </div>
+      <button type="submit" name="start_campaign" class="btn btn-primary">Start Campaign</button>
+    </form>
+  </div>
+  <div class="col-md-6">
+    <h2>Inventory Summary</h2>
+    <p>Total Unique Chemicals: <strong>{{ unique_count }}</strong></p>
+    <hr>
+    <h3>Upload Reference Inventory CSV</h3>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <input type="file" name="inventory_file" class="form-control" required>
+      </div>
+      <button type="submit" name="upload_inventory" class="btn btn-secondary">Upload Inventory</button>
+    </form>
+    <hr>
+    <h3>Upload Archived Campaign CSV</h3>
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <input type="file" name="campaign_file" class="form-control" required>
+      </div>
+      <button type="submit" name="upload_campaign" class="btn btn-secondary">Upload Campaign</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

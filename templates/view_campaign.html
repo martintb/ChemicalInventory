@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}View Campaign - {{ campaign_id }}{% endblock %}
+{% block content %}
+<h1>Campaign: {{ campaign_id }}</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Barcode</th>
+      <th>Timestamp</th>
+      <th>Building</th>
+      <th>Room</th>
+      <th>Location</th>
+      <th>Category</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in data %}
+    <tr>
+      <td>{{ row['barcode'] }}</td>
+      <td>{{ row['timestamp'] }}</td>
+      <td>{{ row['building'] }}</td>
+      <td>{{ row['room'] }}</td>
+      <td>{{ row['location'] }}</td>
+      <td>{{ row['category'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{{ url_for('download_campaign', campaign_id=campaign_id) }}" class="btn btn-success">Download Campaign CSV</a>
+{% endblock %}
+
