@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Reference Inventory Database{% endblock %}
+{% block content %}
+<h1>Reference Inventory Database</h1>
+<div id="database-table" class="ag-theme-alpine" style="height: 500px; width:100%;"></div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/ag-grid-community/dist/ag-grid-community.noStyle.js"></script>
+<script>
+// Define column definitions based on expected CSV columns.
+let dbColumnDefs = [
+  { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
+  { headerName: "Status", field: "Status - Container", filter: true },
+  { headerName: "Time Sensitive", field: "Time Sensitive - Container", filter: true },
+  { headerName: "Location", field: "Location - Container", filter: true },
+  { headerName: "Owner Name", field: "Owner Name - Container", filter: true },
+  { headerName: "Product Identifier", field: "Product Identifier - Product", filter: true },
+  { headerName: "Current Quantity", field: "Current Quantity - Container", filter: true },
+  { headerName: "Unit", field: "Unit - Container", filter: true },
+  { headerName: "NFPA 704 Health Hazard", field: "NFPA 704 Health Hazard - Product", filter: true },
+  { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
+];
+
+// Initialize AG Grid for the database.
+let databaseGridOptions = {
+  columnDefs: dbColumnDefs,
+  rowData: {{ data|tojson }}
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+  let dbGridDiv = document.querySelector('#database-table');
+  new agGrid.Grid(dbGridDiv, databaseGridOptions);
+});
+</script>
+{% endblock %}

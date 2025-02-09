@@ -10,6 +10,7 @@
   </p>
   <p><strong>Campaign ID:</strong> {{ campaign.campaign_id }}</p>
 </div>
+
 <div id="dashboard" class="mb-3">
   <h2>Dashboard</h2>
   <p>Total Scanned: <span id="total">0</span></p>
@@ -17,20 +18,21 @@
   <p>Not Found: <span id="not_found">0</span></p>
   <p>Archived: <span id="archived">0</span></p>
 </div>
+
 <div id="scan-section" class="mb-3">
   <h2>Scan Chemical</h2>
   <input type="text" id="barcode_input" class="form-control" placeholder="Scan or type barcode here" autofocus>
   <small class="form-text text-muted">You may scan or type the barcode using your keyboard.</small>
   <p id="scan-message" class="mt-2"></p>
 </div>
-<div id="scan-table" class="ag-theme-alpine" style="height: 300px; width:100%;"></div>
-<a href="{{ url_for('download') }}" class="btn btn-success mt-3">Download Campaign CSV</a>
 
-<!-- Audio elements for sound feedback -->
-<audio id="sound_found" src="{{ url_for('static', filename='sounds/found.mp3') }}"></audio>
-<audio id="sound_not_found" src="{{ url_for('static', filename='sounds/not_found.mp3') }}"></audio>
-<audio id="sound_archived" src="{{ url_for('static', filename='sounds/archived.mp3') }}"></audio>
-<audio id="sound_duplicate" src="{{ url_for('static', filename='sounds/duplicate.mp3') }}"></audio>
+<h2>Scanned Items</h2>
+<div id="scan-table" class="ag-theme-alpine" style="height: 300px; width:100%;"></div>
+
+<h2>Scanned Inventory Data</h2>
+<div id="inventory-table" class="ag-theme-alpine" style="height: 300px; width:100%;"></div>
+
+<a href="{{ url_for('download') }}" class="btn btn-success mt-3">Download Campaign CSV</a>
 {% endblock %}
 {% block scripts %}
 <!-- AG Grid -->

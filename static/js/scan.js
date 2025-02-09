@@ -11,26 +11,40 @@ let gridOptions = {
   rowData: []
 };
 
-document.addEventListener('DOMContentLoaded', function () {
-  let barcodeInput = document.getElementById('barcode_input');
+// Configure AG Grid for the inventory data from the reference database.
+let inventoryGridOptions = {
+  columnDefs: [
+    { headerName: "Barcode", field: "Barcode ID - Container", filter: true },
+    { headerName: "Status", field: "Status - Container", filter: true },
+    { headerName: "Time Sensitive", field: "Time Sensitive - Container", filter: true },
+    { headerName: "Location", field: "Location - Container", filter: true },
+    { headerName: "Owner Name", field: "Owner Name - Container", filter: true },
+    { headerName: "Product Identifier", field: "Product Identifier - Product", filter: true },
+    { headerName: "Current Quantity", field: "Current Quantity - Container", filter: true },
+    { headerName: "Unit", field: "Unit - Container", filter: true },
+    { headerName: "NFPA 704 Health Hazard", field: "NFPA 704 Health Hazard - Product", filter: true },
+    { headerName: "NFPA 704 Flammability Hazard", field: "NFPA 704 Flammability Hazard - Product", filter: true }
+  ],
+  rowData: []
+};
 
-  // Listen for both keydown and keyup events to improve compatibility.
+document.addEventListener('DOMContentLoaded', function () {
+  // Initialize scanned data grid.
+  let gridDiv = document.querySelector('#scan-table');
+  new agGrid.Grid(gridDiv, gridOptions);
+  fetchScannedData();
+
+  // Initialize inventory data grid.
+  let inventoryGridDiv = document.querySelector('#inventory-table');
+  new agGrid.Grid(inventoryGridDiv, inventoryGridOptions);
+
+  let barcodeInput = document.getElementById('barcode_input');
   barcodeInput.addEventListener('keydown', function (event) {
     if (event.key === "Enter" || event.keyCode === 13) {
       event.preventDefault();
       processBarcode();
     }
   });
-
-  // Alternatively, if keydown doesn't fire reliably in Safari, uncomment the keyup version:
-  /*
-  barcodeInput.addEventListener('keyup', function (event) {
-    if (event.key === "Enter" || event.keyCode === 13) {
-      event.preventDefault();
-      processBarcode();
-    }
-  });
-  */
 
   function processBarcode() {
     let barcode = barcodeInput.value.trim();
@@ -39,11 +53,6 @@ document.addEventListener('DOMContentLoaded', function () {
       barcodeInput.value = "";
     }
   }
-
-  // Initialize AG Grid and load data as before...
-  let gridDiv = document.querySelector('#scan-table');
-  new agGrid.Grid(gridDiv, gridOptions);
-  fetchScannedData();
 });
 
 function processScan(barcode) {
@@ -69,6 +78,20 @@ function processScan(barcode) {
       ? "Duplicate scan: " + data.barcode
       : "Scanned: " + data.barcode + " (" + data.category + ")";
     fetchScannedData();
+
+    // If the response includes inventory data, update the inventory grid.
+    if (data.inventory_data && data.inventory_data.length > 0) {
+      data.inventory_data.forEach(function(newRow) {
+        // Check if this barcode already exists in the inventory grid.
+        let exists = inventoryGridOptions.rowData.some(function(row) {
+          return row["Barcode ID - Container"] == newRow["Barcode ID - Container"];
+        });
+        if (!exists) {
+          inventoryGridOptions.rowData.push(newRow);
+        }
+      });
+      inventoryGridOptions.api.setRowData(inventoryGridOptions.rowData);
+    }
   })
   .catch(error => console.error("Error processing scan:", error));
 }

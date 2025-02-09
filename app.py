@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Change this for production
 
 # Record the app start time for uptime calculation
-app_start_time = datetime.datetime.now()  # NEW: Track when the server started
+app_start_time = datetime.datetime.now()
 
 # Configure logging: All messages will be written to app.log
 logging.basicConfig(
@@ -25,7 +25,7 @@ logging.basicConfig(
 
 # --- Global Variables & Directories ---
 inventory_df = pd.DataFrame()  # Combined reference inventory DataFrame
-# Use an empty DataFrame for scanned data.
+# scanned_df holds the active campaign's scan log.
 scanned_df = pd.DataFrame(columns=[
     "barcode", "timestamp", "building", "room", "location", "category"
 ])
@@ -34,13 +34,13 @@ BASE_DIR = os.getcwd()
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CAMPAIGNS_DIR = os.path.join(BASE_DIR, "campaigns")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")   # NEW: configuration file
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")  # Configuration file
 
 # Ensure required folders exist
 for folder in [DATA_DIR, CAMPAIGNS_DIR, UPLOADS_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-# --- Configuration Handling (NEW) ---
+# --- Configuration Handling ---
 CONFIG = {}
 
 def load_config():
@@ -109,7 +109,6 @@ def archive_campaign():
     save_scanned_data()
 
 # --- Global Error Handler ---
-
 @app.errorhandler(Exception)
 def handle_exception(e):
     logging.exception("Unhandled Exception: %s", e)
@@ -124,7 +123,7 @@ def index():
       - Displays total unique chemicals from the reference inventory.
       - Lets the user start a new scan campaign.
       - Provides forms to upload reference inventory CSVs and archived campaign CSVs.
-      - (Note: When a new CSV is uploaded, the inventory summary is refreshed on reload.)
+      - (When a CSV is uploaded, the inventory summary is updated on reload.)
     """
     try:
         unique_count = 0
@@ -132,7 +131,6 @@ def index():
             unique_count = inventory_df["Barcode ID - Container"].nunique()
 
         if request.method == 'POST':
-            # Determine which form was submitted.
             if 'start_campaign' in request.form:
                 building = request.form.get('building')
                 room = request.form.get('room')
@@ -159,7 +157,6 @@ def index():
                     file.save(filepath)
                     flash("Inventory CSV uploaded successfully.", "success")
                     load_inventory()  # Reload reference database.
-                    # After reloading, update the unique_count.
                     if not inventory_df.empty and "Barcode ID - Container" in inventory_df.columns:
                         unique_count = inventory_df["Barcode ID - Container"].nunique()
                 else:
@@ -201,11 +198,12 @@ def campaign():
 def scan():
     """
     Accept a scanned barcode (via AJAX):
-      - Validate barcode using the configured regular expression.
+      - Validate the barcode using the configured regular expression.
       - Reject duplicate scans.
       - Look up the barcode in the reference inventory.
       - Classify the scan as “found”, “archived”, or “not_found.”
       - Append the scan to the campaign and archive it.
+      - If found in the inventory, return the matching row(s) as inventory_data.
     """
     try:
         data = request.get_json()
@@ -213,7 +211,7 @@ def scan():
         if not barcode:
             return jsonify({"success": False, "message": "No barcode provided."}), 400
 
-        # Validate the barcode using the configured regex
+        # Validate barcode using the configured regex.
         barcode_regex = CONFIG.get("barcode_regex", "^[A-Za-z]?\\d{4,6}$")
         if not re.match(barcode_regex, barcode):
             return jsonify({"success": False, "message": "Invalid barcode format."}), 400
@@ -259,9 +257,9 @@ def scan():
             "location": location,
             "category": category
         }
-        # Replace deprecated .append with pd.concat
+        # Use pd.concat instead of .append (for pandas 2.0 compatibility).
         scanned_df = pd.concat([scanned_df, pd.DataFrame([new_entry])], ignore_index=True)
-        archive_campaign()  # Archive the campaign after each scan.
+        archive_campaign()  # Archive campaign after each scan.
 
         stats = {
             "total": len(scanned_df),
@@ -269,13 +267,19 @@ def scan():
             "not_found": len(scanned_df[scanned_df['category'] == 'not_found']),
             "archived": len(scanned_df[scanned_df['category'] == 'archived'])
         }
+        # If the barcode was found, include the matching inventory row(s) in the response.
+        inventory_data = []
+        if not matched.empty:
+            inventory_data = matched.to_dict(orient='records')
+
         response = {
             "success": True,
             "barcode": barcode,
             "timestamp": timestamp,
             "category": category,
             "stats": stats,
-            "duplicate": False
+            "duplicate": False,
+            "inventory_data": inventory_data
         }
         return jsonify(response)
     except Exception as e:
@@ -341,7 +345,7 @@ def campaign_history():
 
 @app.route('/view_campaign/<campaign_id>')
 def view_campaign(campaign_id):
-    """Display an archived campaign in a table."""
+    """Display an archived campaign in a table along with a restart option."""
     try:
         file_path = os.path.join(CAMPAIGNS_DIR, f"{campaign_id}.csv")
         if os.path.exists(file_path):
@@ -354,6 +358,37 @@ def view_campaign(campaign_id):
     except Exception as e:
         logging.exception("Error viewing campaign %s", campaign_id)
         flash("Error viewing campaign.", "danger")
+        return redirect(url_for('campaign_history'))
+
+@app.route('/restart_campaign/<campaign_id>')
+def restart_campaign(campaign_id):
+    """
+    Restart an archived campaign as the active campaign.
+    The campaign_id is assumed to be in the format: building_room_YYMMDD-HHMMSS.
+    """
+    try:
+        file_path = os.path.join(CAMPAIGNS_DIR, f"{campaign_id}.csv")
+        if os.path.exists(file_path):
+            campaign_data = pd.read_csv(file_path)
+            # Parse building and room from campaign_id.
+            parts = campaign_id.split('_')
+            if len(parts) >= 2:
+                session['building'] = parts[0]
+                session['room'] = parts[1]
+            else:
+                session['building'] = "Unknown"
+                session['room'] = "Unknown"
+            session['campaign_id'] = campaign_id
+            global scanned_df
+            scanned_df = campaign_data  # Set the active campaign data.
+            flash("Campaign restarted successfully.", "success")
+            return redirect(url_for('campaign'))
+        else:
+            flash("Campaign file not found.", "danger")
+            return redirect(url_for('campaign_history'))
+    except Exception as e:
+        logging.exception("Error restarting campaign %s", campaign_id)
+        flash("Error restarting campaign.", "danger")
         return redirect(url_for('campaign_history'))
 
 @app.route('/upload_inventory', methods=['GET', 'POST'])
@@ -393,7 +428,7 @@ def upload_campaign():
         flash("Error uploading campaign CSV.", "danger")
         return redirect(url_for('index'))
 
-# NEW: Configuration route for editing the barcode regular expression
+# Configuration route for editing the barcode regular expression.
 @app.route('/config', methods=['GET', 'POST'])
 def config():
     """Display and allow updating of the barcode regular expression."""
@@ -413,12 +448,11 @@ def config():
         flash("Error updating configuration.", "danger")
         return redirect(url_for('index'))
 
-# NEW: Server status route to display uptime and log output.
+# Server status route to display uptime and log output.
 @app.route('/status')
 def status():
     """Display the server status and log output."""
     try:
-        # Read the log file (for simplicity, reading the whole file)
         try:
             with open("app.log", "r") as f:
                 logs = f.read()
@@ -429,6 +463,23 @@ def status():
     except Exception as e:
         logging.exception("Error displaying server status.")
         flash("Error displaying server status.", "danger")
+        return redirect(url_for('index'))
+
+# New: Database browser route.
+@app.route('/database')
+def view_database():
+    """
+    View and filter the currently loaded reference inventory database using AG Grid.
+    """
+    try:
+        if inventory_df.empty:
+            data = []
+        else:
+            data = inventory_df.to_dict(orient='records')
+        return render_template("database.html", data=data)
+    except Exception as e:
+        logging.exception("Error viewing database.")
+        flash("Error viewing database.", "danger")
         return redirect(url_for('index'))
 
 if __name__ == '__main__':
