@@ -191,7 +191,6 @@ def index():
 @app.route('/campaign/<campaign_id>')
 def campaign(campaign_id=None):
     if campaign_id:
-        # If a campaign_id is provided in the URL, load that campaign.
         session['campaign_id'] = campaign_id
         global scanned_df
         file_path = os.path.join(CAMPAIGNS_DIR, f"{campaign_id}.csv")
@@ -203,91 +202,130 @@ def campaign(campaign_id=None):
     else:
         campaign_id = session.get('campaign_id')
         if not campaign_id:
-            flash("No active campaign. Please start a campaign.", "warning")
+            flash("No active campaign. Please start a new campaign.", "warning")
             return redirect(url_for('index'))
     campaign_info = {
-         "building": session.get('building', ''),
-         "room": session.get('room', ''),
-         "location": session.get('location', ''),
-         "campaign_id": campaign_id
+        "building": session.get('building', ''),
+        "room": session.get('room', ''),
+        "location": session.get('location', ''),
+        "campaign_id": campaign_id
     }
     return render_template("campaign.html", campaign=campaign_info)
 
+import os
+import datetime
+import pandas as pd
+from flask import request, jsonify, session
+
 @app.route('/scan', methods=['POST'])
 def scan():
-    """
-    Accept a scanned barcode (via AJAX):
-      - Validate the barcode using the configured regular expression.
-      - Reject duplicate scans.
-      - Look up the barcode in the reference inventory.
-      - Classify the scan as "found", "archived", or "not_found."
-      - Append the scan to the campaign and archive it.
-      - If found in the inventory, return the matching row(s) as inventory_data.
-    """
     try:
         data = request.get_json()
-        barcode = data.get('barcode', '').strip()
+        barcode = data.get("barcode", "").strip()
         if not barcode:
             return jsonify({"success": False, "message": "No barcode provided."}), 400
 
-        # Validate barcode using the configured regex.
-        barcode_regex = CONFIG.get("barcode_regex", "^[A-Za-z]?\\d{4,6}$")
-        if not re.match(barcode_regex, barcode):
-            return jsonify({"success": False, "message": "Invalid barcode format."}), 400
-
         global scanned_df, inventory_df
 
-        # Check for duplicate in the active campaign.
-        if barcode in scanned_df['barcode'].values:
+        # Check if this barcode has already been scanned.
+        if not scanned_df.empty and barcode in scanned_df["barcode"].values:
             return jsonify({
                 "success": True,
-                "barcode": barcode,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "category": "duplicate",
-                "inventory_data": [],
-                "campaign_stats": get_campaign_stats()
+                "duplicate": True,
+                "message": "Barcode already scanned."
             })
 
-        building = session.get('building')
-        room = session.get('room')
-        location = session.get('location', '')
+        # Get scan metadata from the session.
+        building = session.get("building", "")
+        room = session.get("room", "")
+        location = session.get("location", "")
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Look up the barcode in the reference inventory.
-        matched = inventory_df[inventory_df["Barcode ID - Container"].astype(str) == barcode]
+        matched = pd.DataFrame()
+        if not inventory_df.empty and "Barcode ID - Container" in inventory_df.columns:
+            matched = inventory_df[inventory_df["Barcode ID - Container"].astype(str) == barcode]
 
+        # Determine the category based on the lookup.
         if not matched.empty:
-            category = "found"
+            statuses = matched["Status - Container"].astype(str).str.lower()
+            if any(statuses == "archived"):
+                category = "archived"
+            else:
+                category = "found"
         else:
             category = "not_found"
 
-        new_row = pd.DataFrame({
-            "barcode": [barcode],
-            "timestamp": [timestamp],
-            "building": [building],
-            "room": [room],
-            "location": [location],
-            "category": [category]
-        })
-        scanned_df = pd.concat([scanned_df, new_row], ignore_index=True)
-        archive_campaign()  # Archive campaign after each scan.
-        update_campaign_stats()  # Update campaign statistics
+        # Build the new scan row with both scan metadata and empty reference fields.
+        new_entry = {
+            "barcode": barcode,
+            "timestamp": timestamp,
+            "scan_building": building,
+            "scan_room": room,
+            "scan_location": location,
+            "category": category,
+            "Status - Container": "",
+            "Time Sensitive - Container": "",
+            "Location - Container": "",
+            "Owner Name - Container": "",
+            "Product Identifier - Product": "",
+            "Current Quantity - Container": "",
+            "Unit - Container": "",
+            "NFPA 704 Health Hazard - Product": "",
+            "NFPA 704 Flammability Hazard - Product": ""
+        }
 
-        # If the barcode was found, include the matching inventory row(s) in the response.
-        inventory_data = matched.to_dict(orient='records') if not matched.empty else []
+        # If a matching reference row was found, merge its data into new_entry.
+        if not matched.empty:
+            # For simplicity, take the first matching row.
+            ref_row = matched.iloc[0].to_dict()
+            for key in [
+                "Status - Container", "Time Sensitive - Container", "Location - Container",
+                "Owner Name - Container", "Product Identifier - Product", "Current Quantity - Container",
+                "Unit - Container", "NFPA 704 Health Hazard - Product", "NFPA 704 Flammability Hazard - Product"
+            ]:
+                new_entry[key] = ref_row.get(key, "")
 
+        # Append the new row to the campaign DataFrame using pd.concat.
+        new_df = pd.DataFrame([new_entry])
+        scanned_df = pd.concat([scanned_df, new_df], ignore_index=True)
+
+        # Save the updated campaign data to CSV.
+        campaign_id = session.get("campaign_id")
+        if campaign_id:
+            file_path = os.path.join(CAMPAIGNS_DIR, f"{campaign_id}.csv")
+            scanned_df.to_csv(file_path, index=False)
+
+        # Recalculate campaign statistics.
+        total_scanned = len(scanned_df)
+        found_count = len(scanned_df[scanned_df["category"] == "found"])
+        not_found_count = len(scanned_df[scanned_df["category"] == "not_found"])
+        campaign_stats = {
+            "total_scanned": total_scanned,
+            "found": found_count,
+            "not_found": not_found_count
+        }
+
+        # Build the response.
         response = {
             "success": True,
             "barcode": barcode,
             "timestamp": timestamp,
+            "scan_building": building,
+            "scan_room": room,
+            "scan_location": location,
             "category": category,
-            "inventory_data": inventory_data,
-            "campaign_stats": get_campaign_stats()  # Include updated stats in the response
+            "inventory_data": []  # Will hold reference data if available.
         }
+        if not matched.empty:
+            response["inventory_data"] = [matched.iloc[0].to_dict()]
+        response["campaign_stats"] = campaign_stats
+
         return jsonify(response)
     except Exception as e:
-        logging.exception("Error processing scan.")
+        app.logger.exception("Error processing scan.")
         return jsonify({"success": False, "message": "Internal server error during scan."}), 500
+
 
 @app.route('/api/scanned_data')
 def api_scanned_data():
@@ -367,6 +405,8 @@ def view_campaign(campaign_id):
         logging.exception("Error viewing campaign %s", campaign_id)
         flash("Error viewing campaign.", "danger")
         return redirect(url_for('campaign_history'))
+
+
 
 @app.route('/restart_campaign/<campaign_id>')
 def restart_campaign(campaign_id):

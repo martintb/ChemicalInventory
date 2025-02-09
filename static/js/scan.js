@@ -4,21 +4,22 @@ document.addEventListener("DOMContentLoaded", function(){
     updateCampaignStats(campaignStats);
 
     // Initialize the combined table using Tabulator.
+    // This table loads its data via an ajax URL. When a campaign is restarted,
+    // the /api/scanned_data route will return the updated data.
     var combinedTable = new Tabulator("#combined-table", {
         layout:"fitColumns",
         placeholder:"No scanned items yet",
-        // Use a custom ajaxRequestFunc so we can fix any NaN values.
         ajaxURL:"/api/scanned_data",
+        // Custom ajaxRequestFunc to fix any NaN values in the JSON text.
         ajaxRequestFunc: function(url, config, params) {
             return fetch(url, config)
                 .then(response => response.text())
                 .then(text => {
-                    // Replace bare NaN tokens with null so JSON parses.
                     let fixedText = text.replace(/\bNaN\b/g, "null");
                     return JSON.parse(fixedText);
                 });
         },
-        // Use ajaxResponse to extract campaign stats and return only the data array.
+        // Extract campaign_stats from the response and return the data array.
         ajaxResponse: function(url, params, response) {
             updateCampaignStats(response.campaign_stats);
             return response.data;
@@ -27,10 +28,14 @@ document.addEventListener("DOMContentLoaded", function(){
         paginationSize:10,
         columns:[
             {title:"Barcode", field:"barcode"},
-            {title:"Timestamp", field:"timestamp", sorter:"datetime"},
+            {title:"Scan Time", field:"timestamp", sorter:"datetime"},
+            {title:"Building", field:"scan_building"},
+            {title:"Room", field:"scan_room"},
+            {title:"Location", field:"scan_location"},
+            {title:"Category", field:"category"},
+            // Reference columns:
             {title:"Status", field:"Status - Container"},
             {title:"Time Sensitive", field:"Time Sensitive - Container"},
-            {title:"Location", field:"Location - Container"},
             {title:"Owner Name", field:"Owner Name - Container"},
             {title:"Product Identifier", field:"Product Identifier - Product"},
             {title:"Current Quantity", field:"Current Quantity - Container"},
@@ -40,6 +45,9 @@ document.addEventListener("DOMContentLoaded", function(){
         ],
         initialSort:[{column:"timestamp", dir:"desc"}]
     });
+
+    // When the page loads, force the table to load data.
+    combinedTable.replaceData();
 
     // Listen for the Return/Enter key on the barcode input.
     document.getElementById("barcode_input").addEventListener("keydown", function(e){
@@ -53,21 +61,18 @@ document.addEventListener("DOMContentLoaded", function(){
          var barcodeInput = document.getElementById("barcode_input");
          var barcode = barcodeInput.value.trim();
          if(barcode !== ""){
-             // Check if this barcode already exists in the table.
-             var existingRows = combinedTable.getData().filter(function(row){
+             // Client-side duplicate check: ensure barcode is not already in the table.
+             var existing = combinedTable.getData().filter(function(row){
                  return row.barcode === barcode;
              });
-             if(existingRows.length > 0){
+             if(existing.length > 0){
                  showAlert("Barcode already scanned.");
-                 // Clear and re‑focus the input.
                  barcodeInput.value = "";
                  barcodeInput.focus();
                  barcodeInput.select();
                  return;
              }
-             // Otherwise, process the scan.
              processScan(barcode);
-             // Clear and refocus the input.
              barcodeInput.value = "";
              barcodeInput.focus();
              barcodeInput.select();
@@ -82,30 +87,30 @@ document.addEventListener("DOMContentLoaded", function(){
          })
          .then(res => res.text())
          .then(text => {
-             // Replace any bare NaN tokens with null.
              let fixedText = text.replace(/\bNaN\b/g, "null");
              return JSON.parse(fixedText);
          })
          .then(data => {
               if(!data.success){
-                  // Show an alert if the barcode is invalid (e.g. regex failure).
                   showAlert(data.message || "Invalid barcode.");
                   return;
               }
-              // (Server-side duplicate checking could occur here too,
-              // but our client-side check should catch duplicates.)
               if(data.duplicate){
                   showAlert(data.message || "Barcode already scanned.");
                   return;
               }
 
-              // Prepare the new row data.
+              // Build the new row.
+              // The row includes both the scan info and any reference data.
               let newRow = {
                   barcode: data.barcode,
                   timestamp: data.timestamp,
+                  scan_building: data.scan_building,  // from campaign info
+                  scan_room: data.scan_room,
+                  scan_location: data.scan_location,
+                  category: data.category,
                   "Status - Container": "",
                   "Time Sensitive - Container": "",
-                  "Location - Container": "",
                   "Owner Name - Container": "",
                   "Product Identifier - Product": "",
                   "Current Quantity - Container": "",
@@ -114,12 +119,12 @@ document.addEventListener("DOMContentLoaded", function(){
                   "NFPA 704 Flammability Hazard - Product": ""
               };
 
-              // If inventory data is returned, update the row with that data.
-              if (data.inventory_data && Array.isArray(data.inventory_data) && data.inventory_data.length > 0) {
+              // If reference (inventory) data is returned, merge it into the row.
+              if(data.inventory_data && Array.isArray(data.inventory_data) && data.inventory_data.length > 0){
+                  // Replace any 'NaN' strings with empty strings.
                   for (let key in data.inventory_data[0]) {
-                      // If the value is "NaN" (as string), set it to empty.
-                      if (String(data.inventory_data[0][key]).toLowerCase() === "nan") {
-                          data.inventory_data[0][key] = '';
+                      if(String(data.inventory_data[0][key]).toLowerCase() === "nan"){
+                          data.inventory_data[0][key] = "";
                       }
                   }
                   Object.assign(newRow, data.inventory_data[0]);
@@ -128,10 +133,10 @@ document.addEventListener("DOMContentLoaded", function(){
               // Add the new row to the table.
               combinedTable.addRow(newRow, true);
 
-              // Update campaign statistics.
+              // Update campaign stats.
               updateCampaignStats(data.campaign_stats);
 
-              // Play a sound based on the scan result.
+              // Play a sound.
               playSound(data.category);
          })
          .catch(err => console.error("Error processing scan:", err));
@@ -165,7 +170,6 @@ document.addEventListener("DOMContentLoaded", function(){
          if(alertElem) {
              alertElem.textContent = message;
              alertElem.style.display = "block";
-             // Hide the alert after 3 seconds.
              setTimeout(function(){
                   alertElem.style.display = "none";
              }, 3000);
