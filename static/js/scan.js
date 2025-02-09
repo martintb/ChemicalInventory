@@ -12,21 +12,38 @@ let gridOptions = {
 };
 
 document.addEventListener('DOMContentLoaded', function () {
+  let barcodeInput = document.getElementById('barcode_input');
+
+  // Listen for both keydown and keyup events to improve compatibility.
+  barcodeInput.addEventListener('keydown', function (event) {
+    if (event.key === "Enter" || event.keyCode === 13) {
+      event.preventDefault();
+      processBarcode();
+    }
+  });
+
+  // Alternatively, if keydown doesn't fire reliably in Safari, uncomment the keyup version:
+  /*
+  barcodeInput.addEventListener('keyup', function (event) {
+    if (event.key === "Enter" || event.keyCode === 13) {
+      event.preventDefault();
+      processBarcode();
+    }
+  });
+  */
+
+  function processBarcode() {
+    let barcode = barcodeInput.value.trim();
+    if (barcode !== "") {
+      processScan(barcode);
+      barcodeInput.value = "";
+    }
+  }
+
+  // Initialize AG Grid and load data as before...
   let gridDiv = document.querySelector('#scan-table');
   new agGrid.Grid(gridDiv, gridOptions);
   fetchScannedData();
-
-  let barcodeInput = document.getElementById('barcode_input');
-  barcodeInput.addEventListener('keydown', function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      let barcode = barcodeInput.value.trim();
-      if (barcode !== "") {
-        processScan(barcode);
-        barcodeInput.value = "";
-      }
-    }
-  });
 });
 
 function processScan(barcode) {

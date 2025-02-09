@@ -13,6 +13,9 @@ from flask import (
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Change this for production
 
+# Record the app start time for uptime calculation
+app_start_time = datetime.datetime.now()  # NEW: Track when the server started
+
 # Configure logging: All messages will be written to app.log
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +25,7 @@ logging.basicConfig(
 
 # --- Global Variables & Directories ---
 inventory_df = pd.DataFrame()  # Combined reference inventory DataFrame
+# Use an empty DataFrame for scanned data.
 scanned_df = pd.DataFrame(columns=[
     "barcode", "timestamp", "building", "room", "location", "category"
 ])
@@ -209,7 +213,7 @@ def scan():
         if not barcode:
             return jsonify({"success": False, "message": "No barcode provided."}), 400
 
-        # Validate the barcode using the configured regex (NEW)
+        # Validate the barcode using the configured regex
         barcode_regex = CONFIG.get("barcode_regex", "^[A-Za-z]?\\d{4,6}$")
         if not re.match(barcode_regex, barcode):
             return jsonify({"success": False, "message": "Invalid barcode format."}), 400
@@ -255,7 +259,8 @@ def scan():
             "location": location,
             "category": category
         }
-        scanned_df = scanned_df.append(new_entry, ignore_index=True)
+        # Replace deprecated .append with pd.concat
+        scanned_df = pd.concat([scanned_df, pd.DataFrame([new_entry])], ignore_index=True)
         archive_campaign()  # Archive the campaign after each scan.
 
         stats = {
@@ -406,6 +411,24 @@ def config():
     except Exception as e:
         logging.exception("Error updating config.")
         flash("Error updating configuration.", "danger")
+        return redirect(url_for('index'))
+
+# NEW: Server status route to display uptime and log output.
+@app.route('/status')
+def status():
+    """Display the server status and log output."""
+    try:
+        # Read the log file (for simplicity, reading the whole file)
+        try:
+            with open("app.log", "r") as f:
+                logs = f.read()
+        except Exception as e:
+            logs = "Error reading logs: " + str(e)
+        uptime = datetime.datetime.now() - app_start_time
+        return render_template("status.html", logs=logs, uptime=uptime)
+    except Exception as e:
+        logging.exception("Error displaying server status.")
+        flash("Error displaying server status.", "danger")
         return redirect(url_for('index'))
 
 if __name__ == '__main__':
