@@ -44,21 +44,21 @@ document.addEventListener("DOMContentLoaded", function(){
         pagination:"local",
         paginationSize:10,
         columns:[
-            {title:"Barcode", field:"barcode"},
-            {title:"Scan Time", field:"timestamp", sorter:"datetime"},
-            {title:"Scan Building", field:"scan_building"},
-            {title:"Scan Room", field:"scan_room"},
-            {title:"Scan Location", field:"scan_location"},
-            {title:"Category", field:"category"},
+            {title:"Barcode", field:"barcode", headerFilter:"input"},
+            {title:"Scan Time", field:"timestamp", sorter:"datetime", headerFilter:"input"},
+            {title:"Scan Building", field:"scan_building", headerFilter:"input"},
+            {title:"Scan Room", field:"scan_room", headerFilter:"input"},
+            {title:"Scan Location", field:"scan_location", headerFilter:"input"},
+            {title:"Category", field:"category", headerFilter:"input"},
             // Reference columns:
-            {title:"Status", field:"Status - Container"},
-            {title:"Time Sensitive", field:"Time Sensitive - Container"},
-            {title:"Owner Name", field:"Owner Name - Container"},
-            {title:"Product Identifier", field:"Product Identifier - Product"},
-            {title:"Current Quantity", field:"Current Quantity - Container"},
-            {title:"Unit", field:"Unit - Container"},
-            {title:"NFPA 704 Health Hazard", field:"NFPA 704 Health Hazard - Product"},
-            {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product"}
+            {title:"Status", field:"Status - Container", headerFilter:"input"},
+            {title:"Time Sensitive", field:"Time Sensitive - Container", headerFilter:"input"},
+            {title:"Owner Name", field:"Owner Name - Container", headerFilter:"input"},
+            {title:"Product Identifier", field:"Product Identifier - Product", headerFilter:"input"},
+            {title:"Current Quantity", field:"Current Quantity - Container", headerFilter:"input"},
+            {title:"Unit", field:"Unit - Container", headerFilter:"input"},
+            {title:"NFPA 704 Health Hazard", field:"NFPA 704 Health Hazard - Product", headerFilter:"input"},
+            {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product", headerFilter:"input"}
         ],
         initialSort:[{column:"timestamp", dir:"desc"}]
     });
