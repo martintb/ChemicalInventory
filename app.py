@@ -216,7 +216,7 @@ def campaign(campaign_id=None):
 def scan():
     try:
         data = request.get_json()
-        barcode = data.get("barcode", "").strip()
+        barcode = data.get("barcode", "").strip().upper()
         if not barcode:
             return jsonify({"success": False, "message": "No barcode provided."}), 400
 
