@@ -4,6 +4,10 @@ import logging
 import json
 import re
 import pandas as pd
+from barcode import Code128
+from barcode.writer import ImageWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for, flash
 
 # --- Application and Logging Configuration ---
@@ -110,14 +114,14 @@ def update_campaign_stats():
     global scanned_df
     session['total_scanned'] = len(scanned_df)
     session['not_found'] = len(scanned_df[scanned_df['category'] == 'not_found'])
-    session['found'] = len(scanned_df[scanned_df['category'] == 'found'])
+    session['active'] = len(scanned_df[scanned_df['category'] == 'active'])
 
 def get_campaign_stats():
     """Get current campaign statistics."""
     return {
         'total_scanned': session.get('total_scanned', 0),
         'not_found': session.get('not_found', 0),
-        'found': session.get('found', 0)
+        'active': session.get('active', 0)
     }
 
 # --- Global Error Handler ---
@@ -247,7 +251,7 @@ def scan():
             if any(statuses == "archived"):
                 category = "archived"
             else:
-                category = "found"
+                category = "active"
         else:
             category = "not_found"
 
@@ -301,12 +305,12 @@ def scan():
 
         # Recalculate campaign statistics.
         total_scanned = len(scanned_df)
-        found_count = len(scanned_df[scanned_df["category"] == "found"])
+        active_count = len(scanned_df[scanned_df["category"] == "active"])
         not_found_count = len(scanned_df[scanned_df["category"] == "not_found"])
         archived_count = len(scanned_df[scanned_df["category"] == "archived"])
         campaign_stats = {
             "total_scanned": total_scanned,
-            "found": found_count,
+            "active": active_count,
             "not_found": not_found_count,
             "archived": archived_count
         }
@@ -418,7 +422,7 @@ def view_campaign(campaign_id):
             campaign_data = pd.read_csv(file_path)
             data = campaign_data.to_dict(orient='records')
             stats = {'total_scanned': len(data), 'not_found': sum(1 for item in data if item['category'] == 'not_found'),
-                     'found': sum(1 for item in data if item['category'] == 'found')}
+                     'active': sum(1 for item in data if item['category'] == 'active')}
             return render_template("view_campaign.html", campaign_id=campaign_id, data=data, stats=stats)
         else:
             flash("Campaign file not found.", "danger")
@@ -427,8 +431,6 @@ def view_campaign(campaign_id):
         logging.exception("Error viewing campaign %s", campaign_id)
         flash("Error viewing campaign.", "danger")
         return redirect(url_for('campaign_history'))
-
-
 
 @app.route('/restart_campaign/<campaign_id>')
 def restart_campaign(campaign_id):
@@ -551,6 +553,59 @@ def view_database():
         logging.exception("Error viewing database.")
         flash("Error viewing database.", "danger")
         return redirect(url_for('index'))
+
+@app.route('/generate_barcodes/<campaign_id>')
+def generate_barcodes(campaign_id):
+    """Generate a PDF of barcodes for selected items."""
+    try:
+        barcodes = request.args.get('barcodes', '').split(',')
+        if not barcodes:
+            flash("No barcodes selected.", "warning")
+            return redirect(url_for('view_campaign', campaign_id=campaign_id))
+
+        # Create a temporary directory for barcode images
+        temp_dir = os.path.join(app.root_path, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # Generate PDF with barcodes
+        pdf_path = os.path.join(temp_dir, f'barcodes_{campaign_id}.pdf')
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        width, height = letter
+
+        # Calculate layout
+        margin = 50
+        barcode_width = 200
+        barcode_height = 100
+        cols = 2
+        rows = 5
+        x_spacing = (width - 2 * margin) / cols
+        y_spacing = (height - 2 * margin) / rows
+
+        for i, barcode_value in enumerate(barcodes):
+            # Generate barcode image
+            barcode = Code128(barcode_value, writer=ImageWriter())
+            barcode_path = os.path.join(temp_dir, f'barcode_{i}')
+            barcode.save(barcode_path)
+
+            # Calculate position
+            page = i // (cols * rows)
+            if i % (cols * rows) == 0 and i > 0:
+                c.showPage()
+            
+            pos = i % (cols * rows)
+            x = margin + (pos % cols) * x_spacing
+            y = height - margin - ((pos // cols) + 1) * y_spacing
+
+            # Draw barcode and text
+            c.drawImage(barcode_path+'.png', x, y, barcode_width, barcode_height)
+            c.drawString(x + 10, y - 20, barcode_value)
+
+        c.save()
+        return send_file(pdf_path, as_attachment=True, download_name=f'barcodes_{campaign_id}.pdf')
+    except Exception as e:
+        logging.exception("Error generating barcodes")
+        flash("Error generating barcodes.", "danger")
+        return redirect(url_for('view_campaign', campaign_id=campaign_id))
 
 if __name__ == '__main__':
     app.run(debug=True)

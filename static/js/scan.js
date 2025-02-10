@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function(){
     // Initialize campaign stats
-    var campaignStats = {total_scanned: 0, not_found: 0, found: 0};
+    var campaignStats = {total_scanned: 0, not_found: 0, active: 0};
     var barcodeRegex = null;
     
     // Fetch the barcode regex from the server
@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", function(){
          
          // Validate barcode against regex if available
          if (barcodeRegex && !barcodeRegex.test(barcode)) {
-             showAlert("Invalid barcode format");
+             ChemUtils.showAlert("Invalid barcode format");
              barcodeInput.value = "";
              barcodeInput.focus();
              barcodeInput.select();
@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", function(){
              });
 
              if(existing.length > 0){
-                 showAlert("Barcode already scanned.");
+                 ChemUtils.showAlert("Barcode already scanned.");
                  barcodeInput.value = "";
                  barcodeInput.focus();
                  barcodeInput.select();
@@ -120,11 +120,11 @@ document.addEventListener("DOMContentLoaded", function(){
          })
          .then(data => {
               if(!data.success){
-                  showAlert(data.message || "Invalid barcode.");
+                  ChemUtils.showAlert(data.message || "Invalid barcode.");
                   return;
               }
               if(data.duplicate){
-                  showAlert(data.message || "Barcode already scanned.");
+                  ChemUtils.showAlert(data.message || "Barcode already scanned.");
                   return;
               }
 
@@ -172,8 +172,8 @@ document.addEventListener("DOMContentLoaded", function(){
 
     function playSound(category){
          var soundId = "";
-         if(category === "found"){
-             soundId = "sound_found";
+         if(category === "active"){
+             soundId = "sound_active";
          } else if(category === "not_found"){
              soundId = "sound_not_found";
          } else if(category === "archived"){
@@ -190,20 +190,9 @@ document.addEventListener("DOMContentLoaded", function(){
     function updateCampaignStats(stats) {
         document.getElementById('total-scanned').textContent = stats.total_scanned;
         document.getElementById('not-found').textContent = stats.not_found;
-        document.getElementById('found').textContent = stats.found;
+        document.getElementById('active').textContent = stats.active;
         document.getElementById('archived').textContent = stats.archived;
 
-    }
-
-    function showAlert(message) {
-         var alertElem = document.getElementById("scan-alert");
-         if(alertElem) {
-             alertElem.textContent = message;
-             alertElem.style.display = "block";
-             setTimeout(function(){
-                  alertElem.style.display = "none";
-             }, 3000);
-         }
     }
 
     // Initial fetch of campaign stats.

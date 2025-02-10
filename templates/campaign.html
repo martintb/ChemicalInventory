@@ -20,7 +20,7 @@
   <p>
     <strong>Total Scanned:</strong> <span id="total-scanned">0</span> |
     <strong>Not Found:</strong> <span id="not-found">0</span> |
-    <strong>Found:</strong> <span id="found">0</span> |
+    <strong>Active:</strong> <span id="active">0</span> |
     <strong>Archived:</strong> <span id="archived">0</span>
   </p>
 </div>
@@ -41,5 +41,7 @@
 {% block scripts %}
   <!-- Include Tabulator JS -->
   <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+  <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
   <script src="{{ url_for('static', filename='js/scan.js') }}"></script>
 {% endblock %}

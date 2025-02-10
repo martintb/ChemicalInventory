@@ -6,15 +6,25 @@
 {% endblock %}
 {% block content %}
 <h1>Campaign: {{ campaign_id }}</h1>
+<!-- Alert banner for duplicate or invalid barcodes -->
+<div id="scan-alert" style="display:none;" class="alert alert-warning mt-2" role="alert"></div>
 <div id="campaign-table" style="margin-bottom:20px;"></div>
 <div class="mt-3">
+    <button id="select-all" class="btn btn-secondary">Select All</button>
+    <button id="deselect-all" class="btn btn-secondary">Deselect All</button>
+    Selected: <span id="select-stats">0</span>
+</div>
+<div class="mt-3">
   <a href="{{ url_for('download_campaign', campaign_id=campaign_id) }}" class="btn btn-success">Download Campaign CSV</a>
+  <button id="generate-barcodes" class="btn btn-primary">Generate Barcodes</button>
   <a href="{{ url_for('campaign', campaign_id=campaign_id) }}" class="btn btn-warning">Resume Campaign</a>
 </div>
 {% endblock %}
 {% block scripts %}
   <!-- Include Tabulator JS -->
   <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+  <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function(){
         // Define the full set of columns (scan metadata and reference data)
@@ -39,13 +49,39 @@
         var campaignData = {{ data|tojson }};
 
         // Initialize Tabulator to display the campaign data.
-        new Tabulator("#campaign-table", {
+        var table = new Tabulator("#campaign-table", {
             layout:"fitColumns",
             pagination:"local",
             paginationSize:10,
+            selectable: true,
             columns: columns,
             data: campaignData,
             initialSort:[{column:"timestamp", dir:"desc"}]
+        });
+
+        table.on("rowSelectionChanged", function(data, rows){
+          document.getElementById("select-stats").innerHTML = data.length;
+        });
+
+        //select row on "select all" button click
+        document.getElementById("select-all").addEventListener("click", function(){
+            table.selectRow();
+        });
+
+        //deselect row on "deselect all" button click
+        document.getElementById("deselect-all").addEventListener("click", function() {
+            table.deselectRow();
+        });
+
+        // Add event listener for barcode generation
+        document.getElementById("generate-barcodes").addEventListener("click", function() {
+            var selectedRows = table.getSelectedRows();
+            if (selectedRows.length === 0) {
+                ChemUtils.showAlert("Please select at least one row to generate barcodes");
+                return;
+            }
+            var barcodes = selectedRows.map(row => row.getData().barcode);
+            window.open(`/generate_barcodes/{{campaign_id}}?barcodes=${barcodes.join(",")}`, '_blank');
         });
     });
   </script>
