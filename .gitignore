@@ -202,3 +202,4 @@ instance/*
 .webassets-cache
 .env
 
+/.codebuddy/

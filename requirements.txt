@@ -1,0 +1,9 @@
+Flask>=3.1.0
+pandas>=2.2.3
+numpy>=1.23.0
+python-dotenv>=1.0.0
+gunicorn>=21.0.0
+tabulator>=1.53.5
+pytest>=7.0.0
+black>=23.0
+flake8>=5.0.0

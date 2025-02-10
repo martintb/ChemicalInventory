@@ -1,7 +1,24 @@
 document.addEventListener("DOMContentLoaded", function(){
     // Initialize campaign stats
     var campaignStats = {total_scanned: 0, not_found: 0, found: 0};
-    updateCampaignStats(campaignStats);
+    var barcodeRegex = null;
+    
+    // Fetch the barcode regex from the server
+    fetch('/config')
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const regexInput = doc.getElementById('barcode_regex');
+            if (regexInput) {
+                try {
+                    barcodeRegex = new RegExp(regexInput.value);
+                } catch (e) {
+                    console.error("Invalid regex pattern:", e);
+                    barcodeRegex = null;
+                }
+            }
+        });
 
     // Initialize the combined table using Tabulator.
     // This table loads its data via an ajax URL. When a campaign is restarted,
@@ -60,6 +77,16 @@ document.addEventListener("DOMContentLoaded", function(){
     function processBarcode(){
          var barcodeInput = document.getElementById("barcode_input");
          var barcode = barcodeInput.value.trim();
+         
+         // Validate barcode against regex if available
+         if (barcodeRegex && !barcodeRegex.test(barcode)) {
+             showAlert("Invalid barcode format");
+             barcodeInput.value = "";
+             barcodeInput.focus();
+             barcodeInput.select();
+             return;
+         }
+         
          if(barcode !== ""){
              // Client-side duplicate check: ensure barcode is not already in the table.
              var existing = combinedTable.getData().filter(function(row){
