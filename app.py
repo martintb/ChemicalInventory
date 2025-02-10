@@ -378,18 +378,36 @@ def download_campaign(campaign_id):
 
 @app.route('/campaign_history')
 def campaign_history():
-    """Display a list of archived campaigns (CSV files in CAMPAIGNS_DIR)."""
     try:
-        campaigns = []
+        campaigns_list = []
+        # Iterate over all CSV files in the campaigns folder.
         for file in os.listdir(CAMPAIGNS_DIR):
             if file.endswith('.csv'):
-                campaigns.append(file)
-        campaigns.sort(reverse=True)
-        return render_template("campaign_history.html", campaigns=campaigns)
+                campaign_id = file[:-4]  # remove the '.csv' extension
+                file_path = os.path.join(CAMPAIGNS_DIR, file)
+                try:
+                    df = pd.read_csv(file_path)
+                except Exception as e:
+                    app.logger.exception("Error reading campaign file %s", file)
+                    continue  # Skip files that cannot be read
+
+                total_scanned = len(df)
+                not_found_count = len(df[df["category"] == "not_found"])
+                archived_count = len(df[df["category"] == "archived"])
+
+                campaigns_list.append({
+                    "campaign_id": campaign_id,
+                    "total_scanned": total_scanned,
+                    "not_found": not_found_count,
+                    "archived": archived_count
+                })
+        # Sort campaigns in descending order (adjust sort key if needed)
+        campaigns_list.sort(key=lambda x: x["campaign_id"], reverse=True)
+        return render_template("campaign_history.html", campaigns=campaigns_list)
     except Exception as e:
-        logging.exception("Error loading campaign history.")
+        app.logger.exception("Error loading campaign history.")
         flash("Error loading campaign history.", "danger")
-        return redirect(url_for('index'))
+        return redirect('/')
 
 @app.route('/view_campaign/<campaign_id>')
 def view_campaign(campaign_id):
