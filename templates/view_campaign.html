@@ -7,14 +7,17 @@
 {% block content %}
 <h1>Campaign: {{ campaign_id }}</h1>
 <div id="campaign-table" style="margin-bottom:20px;"></div>
-<a href="{{ url_for('download_campaign', campaign_id=campaign_id) }}" class="btn btn-success">Download Campaign CSV</a>
+<div class="mt-3">
+  <a href="{{ url_for('download_campaign', campaign_id=campaign_id) }}" class="btn btn-success">Download Campaign CSV</a>
+  <a href="{{ url_for('campaign', campaign_id=campaign_id) }}" class="btn btn-warning">Resume Campaign</a>
+</div>
 {% endblock %}
 {% block scripts %}
   <!-- Include Tabulator JS -->
   <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function(){
-        // Define the column definitions matching the full campaign table.
+        // Define the full set of columns (scan metadata and reference data)
         var columns = [
             {title:"Barcode", field:"barcode"},
             {title:"Scan Time", field:"timestamp", sorter:"datetime"},
@@ -32,10 +35,10 @@
             {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product"}
         ];
 
-        // The 'data' variable is provided by the Flask route (via Jinja2) as JSON.
+        // 'data' is passed from Flask via Jinja2.
         var campaignData = {{ data|tojson }};
 
-        // Initialize Tabulator on the campaign-table element.
+        // Initialize Tabulator to display the campaign data.
         new Tabulator("#campaign-table", {
             layout:"fitColumns",
             pagination:"local",

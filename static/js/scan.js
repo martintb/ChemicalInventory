@@ -65,6 +65,7 @@ document.addEventListener("DOMContentLoaded", function(){
              var existing = combinedTable.getData().filter(function(row){
                  return row.barcode === barcode;
              });
+
              if(existing.length > 0){
                  showAlert("Barcode already scanned.");
                  barcodeInput.value = "";
