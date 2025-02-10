@@ -1,31 +1,49 @@
 {% extends "base.html" %}
 {% block title %}View Campaign - {{ campaign_id }}{% endblock %}
+{% block head %}
+  <!-- Include Tabulator CSS -->
+  <link href="https://unpkg.com/tabulator-tables@5.4.4/dist/css/tabulator.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <h1>Campaign: {{ campaign_id }}</h1>
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th>Barcode</th>
-      <th>Timestamp</th>
-      <th>Building</th>
-      <th>Room</th>
-      <th>Location</th>
-      <th>Category</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for row in data %}
-    <tr>
-      <td>{{ row['barcode'] }}</td>
-      <td>{{ row['timestamp'] }}</td>
-      <td>{{ row['building'] }}</td>
-      <td>{{ row['room'] }}</td>
-      <td>{{ row['location'] }}</td>
-      <td>{{ row['category'] }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div id="campaign-table" style="margin-bottom:20px;"></div>
 <a href="{{ url_for('download_campaign', campaign_id=campaign_id) }}" class="btn btn-success">Download Campaign CSV</a>
-<a href="{{ url_for('restart_campaign', campaign_id=campaign_id) }}" class="btn btn-warning">Restart Campaign</a>
+{% endblock %}
+{% block scripts %}
+  <!-- Include Tabulator JS -->
+  <script src="https://unpkg.com/tabulator-tables@5.4.4/dist/js/tabulator.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+        // Define the column definitions matching the full campaign table.
+        var columns = [
+            {title:"Barcode", field:"barcode"},
+            {title:"Scan Time", field:"timestamp", sorter:"datetime"},
+            {title:"Building", field:"scan_building"},
+            {title:"Room", field:"scan_room"},
+            {title:"Location", field:"scan_location"},
+            {title:"Category", field:"category"},
+            {title:"Status", field:"Status - Container"},
+            {title:"Time Sensitive", field:"Time Sensitive - Container"},
+            {title:"Owner Name", field:"Owner Name - Container"},
+            {title:"Product Identifier", field:"Product Identifier - Product"},
+            {title:"Current Quantity", field:"Current Quantity - Container"},
+            {title:"Unit", field:"Unit - Container"},
+            {title:"NFPA 704 Health Hazard", field:"NFPA 704 Health Hazard - Product"},
+            {title:"NFPA 704 Flammability Hazard", field:"NFPA 704 Flammability Hazard - Product"}
+        ];
+
+        // The 'data' variable is provided by the Flask route (via Jinja2) as JSON.
+        var campaignData = {{ data|tojson }};
+
+        // Initialize Tabulator on the campaign-table element.
+        new Tabulator("#campaign-table", {
+            layout:"fitColumns",
+            pagination:"local",
+            paginationSize:10,
+            columns: columns,
+            data: campaignData,
+            initialSort:[{column:"timestamp", dir:"desc"}]
+        });
+    });
+  </script>
 {% endblock %}

@@ -29,9 +29,9 @@ document.addEventListener("DOMContentLoaded", function(){
         columns:[
             {title:"Barcode", field:"barcode"},
             {title:"Scan Time", field:"timestamp", sorter:"datetime"},
-            {title:"Building", field:"scan_building"},
-            {title:"Room", field:"scan_room"},
-            {title:"Location", field:"scan_location"},
+            {title:"Scan Building", field:"scan_building"},
+            {title:"Scan Room", field:"scan_room"},
+            {title:"Scan Location", field:"scan_location"},
             {title:"Category", field:"category"},
             // Reference columns:
             {title:"Status", field:"Status - Container"},
@@ -163,6 +163,8 @@ document.addEventListener("DOMContentLoaded", function(){
         document.getElementById('total-scanned').textContent = stats.total_scanned;
         document.getElementById('not-found').textContent = stats.not_found;
         document.getElementById('found').textContent = stats.found;
+        document.getElementById('archived').textContent = stats.archived;
+
     }
 
     function showAlert(message) {

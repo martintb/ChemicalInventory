@@ -212,11 +212,6 @@ def campaign(campaign_id=None):
     }
     return render_template("campaign.html", campaign=campaign_info)
 
-import os
-import datetime
-import pandas as pd
-from flask import request, jsonify, session
-
 @app.route('/scan', methods=['POST'])
 def scan():
     try:
@@ -227,7 +222,7 @@ def scan():
 
         global scanned_df, inventory_df
 
-        # Check if this barcode has already been scanned.
+        # Check for duplicate scan by looking at the 'barcode' column in scanned_df.
         if not scanned_df.empty and barcode in scanned_df["barcode"].values:
             return jsonify({
                 "success": True,
@@ -235,7 +230,7 @@ def scan():
                 "message": "Barcode already scanned."
             })
 
-        # Get scan metadata from the session.
+        # Retrieve campaign metadata from the session.
         building = session.get("building", "")
         room = session.get("room", "")
         location = session.get("location", "")
@@ -246,7 +241,7 @@ def scan():
         if not inventory_df.empty and "Barcode ID - Container" in inventory_df.columns:
             matched = inventory_df[inventory_df["Barcode ID - Container"].astype(str) == barcode]
 
-        # Determine the category based on the lookup.
+        # Determine the category.
         if not matched.empty:
             statuses = matched["Status - Container"].astype(str).str.lower()
             if any(statuses == "archived"):
@@ -256,7 +251,8 @@ def scan():
         else:
             category = "not_found"
 
-        # Build the new scan row with both scan metadata and empty reference fields.
+        # Build the new scan row.
+        # Use "scan_building", "scan_room", and "scan_location" for the scan metadata.
         new_entry = {
             "barcode": barcode,
             "timestamp": timestamp,
@@ -275,20 +271,27 @@ def scan():
             "NFPA 704 Flammability Hazard - Product": ""
         }
 
-        # If a matching reference row was found, merge its data into new_entry.
+        # If reference data is found, merge the first matching row into new_entry.
         if not matched.empty:
-            # For simplicity, take the first matching row.
-            ref_row = matched.iloc[0].to_dict()
-            for key in [
-                "Status - Container", "Time Sensitive - Container", "Location - Container",
-                "Owner Name - Container", "Product Identifier - Product", "Current Quantity - Container",
-                "Unit - Container", "NFPA 704 Health Hazard - Product", "NFPA 704 Flammability Hazard - Product"
-            ]:
-                new_entry[key] = ref_row.get(key, "")
+            ref_data = matched.iloc[0].to_dict()
+            # Remove any redundant keys from the reference data.
+            for redundant_key in ["building", "room", "location"]:
+                if redundant_key in ref_data:
+                    del ref_data[redundant_key]
+            new_entry.update(ref_data)
 
-        # Append the new row to the campaign DataFrame using pd.concat.
+        # Append the new row to scanned_df using pd.concat (compatible with pandas 2.0).
         new_df = pd.DataFrame([new_entry])
         scanned_df = pd.concat([scanned_df, new_df], ignore_index=True)
+
+        # Ensure that only the desired columns are kept.
+        desired_columns = [
+            "barcode", "timestamp", "scan_building", "scan_room", "scan_location", "category",
+            "Status - Container", "Time Sensitive - Container", "Location - Container",
+            "Owner Name - Container", "Product Identifier - Product", "Current Quantity - Container",
+            "Unit - Container", "NFPA 704 Health Hazard - Product", "NFPA 704 Flammability Hazard - Product"
+        ]
+        scanned_df = scanned_df[[col for col in desired_columns if col in scanned_df.columns]]
 
         # Save the updated campaign data to CSV.
         campaign_id = session.get("campaign_id")
@@ -300,13 +303,15 @@ def scan():
         total_scanned = len(scanned_df)
         found_count = len(scanned_df[scanned_df["category"] == "found"])
         not_found_count = len(scanned_df[scanned_df["category"] == "not_found"])
+        archived_count = len(scanned_df[scanned_df["category"] == "archived"])
         campaign_stats = {
             "total_scanned": total_scanned,
             "found": found_count,
-            "not_found": not_found_count
+            "not_found": not_found_count,
+            "archived": archived_count
         }
 
-        # Build the response.
+        # Build the JSON response.
         response = {
             "success": True,
             "barcode": barcode,
@@ -325,7 +330,6 @@ def scan():
     except Exception as e:
         app.logger.exception("Error processing scan.")
         return jsonify({"success": False, "message": "Internal server error during scan."}), 500
-
 
 @app.route('/api/scanned_data')
 def api_scanned_data():
