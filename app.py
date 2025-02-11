@@ -652,4 +652,4 @@ def generate_barcodes(campaign_id):
         return redirect(url_for('view_campaign', campaign_id=campaign_id))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')
