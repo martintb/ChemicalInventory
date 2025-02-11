@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", function(){
         },
         // Extract campaign_stats from the response and return the data array.
         ajaxResponse: function(url, params, response) {
-            updateCampaignStats(response.campaign_stats);
+            updateCampaignStats(response.campaign_statistics);
             return response.data;
         },
         pagination:"local",
@@ -64,7 +64,9 @@ document.addEventListener("DOMContentLoaded", function(){
     });
 
     // When the page loads, force the table to load data.
-    combinedTable.replaceData();
+    combinedTable.on("tableBuilt", function(){
+        combinedTable.replaceData();
+    });
 
     // Listen for the Return/Enter key on the barcode input.
     document.getElementById("barcode_input").addEventListener("keydown", function(e){
@@ -162,7 +164,7 @@ document.addEventListener("DOMContentLoaded", function(){
               combinedTable.addRow(newRow, true);
 
               // Update campaign stats.
-              updateCampaignStats(data.campaign_stats);
+              updateCampaignStats(data.campaign_statistics);
 
               // Play a sound.
               playSound(data.category);
@@ -202,6 +204,6 @@ document.addEventListener("DOMContentLoaded", function(){
           let fixedText = text.replace(/\bNaN\b/g, "null");
           return JSON.parse(fixedText);
       })
-      .then(data => updateCampaignStats(data.campaign_stats))
+      .then(data => updateCampaignStats(data.campaign_statistics))
       .catch(err => console.error("Error fetching initial campaign stats:", err));
 });
