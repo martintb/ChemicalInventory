@@ -23,6 +23,8 @@
        <button class="btn btn-danger btn-sm delete-campaign" data-campaign-id="{{ campaign.campaign_id }}">Delete</button>
         <a href="{{ url_for('view_campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-primary btn-sm">View</a>
         <a href="{{ url_for('download_campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-success btn-sm">Download</a>
+        <a href="{{ url_for('campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-warning btn-sm">Resume</a>
+        <a href="{{ url_for('copy_campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-info btn-sm">Copy</a>
       </td>
     </tr>
     {% endfor %}
