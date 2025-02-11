@@ -20,6 +20,7 @@
       <td>{{ campaign.not_found }}</td>
       <td>{{ campaign.archived }}</td>
       <td>
+       <button class="btn btn-danger btn-sm delete-campaign" data-campaign-id="{{ campaign.campaign_id }}">Delete</button>
         <a href="{{ url_for('view_campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-primary btn-sm">View</a>
         <a href="{{ url_for('download_campaign', campaign_id=campaign.campaign_id) }}" class="btn btn-success btn-sm">Download</a>
       </td>
@@ -27,4 +28,26 @@
     {% endfor %}
   </tbody>
 </table>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.delete-campaign').forEach(button => {
+        button.addEventListener('click', function() {
+            const campaignId = this.getAttribute('data-campaign-id');
+            if (confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) {
+                fetch(`/delete_campaign/${campaignId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.closest('tr').remove();
+                    } else {
+                        alert('Error deleting campaign: ' + data.message);
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

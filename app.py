@@ -479,12 +479,13 @@ def copy_campaign(campaign_id):
             if len(parts) >= 2:
                 building = parts[0]
                 room = parts[1]
+                # Extract the original timestamp from the campaign ID
+                original_timestamp = parts[2] if len(parts) > 2 else "unknown"
+                # Generate new campaign ID with reference to original
+                new_campaign_id = f"{building}_{room}_{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}-C-{original_timestamp}"
             else:
                 building = "Unknown"
                 room = "Unknown"
-            
-            # Generate new campaign ID with current timestamp
-            new_campaign_id = f"{building}_{room}_{datetime.datetime.now().strftime('%y%m%d-%H%M%S')}"
             
             # Set up the new campaign in the session
             session['building'] = building
@@ -650,6 +651,26 @@ def generate_barcodes(campaign_id):
         logging.exception("Error generating barcodes")
         flash("Error generating barcodes.", "danger")
         return redirect(url_for('view_campaign', campaign_id=campaign_id))
+
+@app.route('/delete_campaign/<campaign_id>', methods=['DELETE'])
+def delete_campaign(campaign_id):
+    """Delete a campaign and its associated file."""
+    try:
+        file_path = os.path.join(CAMPAIGNS_DIRECTORY, f"{campaign_id}.csv")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            return jsonify({
+                "success": True,
+                "message": "Campaign deleted successfully"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Campaign file not found"
+            }), 404
+    except Exception as exception:
+        logging.exception("Error deleting campaign %s", campaign_id)
+        return jsonify({"success": False, "message": str(exception)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
